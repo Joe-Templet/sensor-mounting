@@ -36,39 +36,39 @@ def threadBoth(source=0):
     video_getter = VideoGet(source).start()
     video_shower = VideoShow(video_getter.frame).start()
     cps = CountsPerSec().start()
-    while display_video:
-##
-        frame = video_getter.frame
-        #frame = putIterationsPerSec(frame, cps.countsPerSec())
+    while True:
+        if display_video:
+            frame = video_getter.frame
+            #frame = putIterationsPerSec(frame, cps.countsPerSec())
         
-        mask = object_detector.apply(frame)
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        blur = cv2.medianBlur(gray, 5)
-        circles = cv2.HoughCircles(blur, cv2.HOUGH_GRADIENT, 
-            minDist=MinDist,
-            dp=dp,
-            param1=max_canny_threshold,
-            param2=marker_threshold,
-            minRadius=MinRadius,
-            maxRadius=MaxRadius)
+            mask = object_detector.apply(frame)
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            blur = cv2.medianBlur(gray, 5)
+            circles = cv2.HoughCircles(blur, cv2.HOUGH_GRADIENT, 
+                minDist=MinDist,
+                dp=dp,
+                param1=max_canny_threshold,
+                param2=marker_threshold,
+                minRadius=MinRadius,
+                maxRadius=MaxRadius)
     
-        if circles is not None:
-            detected_circles = np.uint16(np.around(circles))
-            for (x, y, r) in detected_circles[0, :]:       
-                cv2.circle(frame, (x, y), r, (0, 0, 0), 3)
-                cv2.circle(frame, (x, y), 2, (0, 255, 255), 3)
+            if circles is not None:
+                detected_circles = np.uint16(np.around(circles))
+                for (x, y, r) in detected_circles[0, :]:       
+                    cv2.circle(frame, (x, y), r, (0, 0, 0), 3)
+                    cv2.circle(frame, (x, y), 2, (0, 255, 255), 3)
 
-        if detect_edges:
-            frame = cv2.Canny(frame, max_canny_threshold/2, max_canny_threshold)
+            if detect_edges:
+                frame = cv2.Canny(frame, max_canny_threshold/2, max_canny_threshold)
         
-        if show_circles:
-            cv2.circle(frame, (100, 100), MinRadius, (0, 100, 100), 3)
-            cv2.circle(frame, (100, 100), MaxRadius, (0, 100, 100), 3)
+            if show_circles:
+                cv2.circle(frame, (100, 100), MinRadius, (0, 100, 100), 3)
+                cv2.circle(frame, (100, 100), MaxRadius, (0, 100, 100), 3)
 ##         
         
         
-        video_shower.frame = frame
-        cps.increment()
+            video_shower.frame = frame
+            cps.increment()
     video_shower.stop()
     video_getter.stop()
     cv2.destroyAllWindows()
