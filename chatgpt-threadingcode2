@@ -1,0 +1,34 @@
+import cv2
+import multiprocessing as mp
+
+def display_webcam():
+    cap = cv2.VideoCapture(0)
+    while True:
+        ret, frame = cap.read()
+
+        if not ret:
+            print("Failed to capture frame from the webcam")
+            break
+
+        cv2.imshow("Webcam Feed", frame)
+
+        if cv2.waitKey(1) == ord('q'):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+if __name__ == '__main__':
+    # Create a separate process for displaying the webcam feed
+    process = mp.Process(target=display_webcam)
+
+    # Start the process
+    process.start()
+
+    # Wait for the 'q' key to be pressed to stop the program
+    while True:
+        if cv2.waitKey(1) == ord('q'):
+            break
+
+    # Terminate the process
+    process.terminate()
