@@ -1,19 +1,18 @@
-#from queue import Queue
-# #from stframe import st_frame
 import streamlit as st
 import cv2 
 import multiprocessing as mp
-from multiprocessing import Queue
+from multiprocessing import Manager
 import numpy as np
 from kthread import KThread
-#from CountsPerSec import CountsPerSec
+from queue import LifoQueue
+
 
 
 object_detector = cv2.createBackgroundSubtractorMOG2(history=50, varThreshold=80)
 MinDist = st.sidebar.slider("minimum distance", 1, 200, 1)
 dp = (st.sidebar.slider("DP", 0, 200, 5))*(0.01)
-max_canny_threshold = st.sidebar.slider("Canny Threshold", 1, 200, 1)
-marker_threshold = st.sidebar.slider("Marker Threshold", 1, 200, 1)
+max_canny_threshold = st.sidebar.slider("Parameter 1", 1, 200, 1)
+marker_threshold = st.sidebar.slider("Parameter 2", 1, 200, 1)
 MinRadius = st.sidebar.slider("minradius", 0, 200, 1)
 MaxRadius = st.sidebar.slider("maxradius", 0, 200, 1)
 detect_edges = st.sidebar.checkbox("show edge detection")
@@ -27,20 +26,23 @@ show_circles = st.sidebar.checkbox("show radius limits")
         #cv2.putText(frame, "{:.0f} iterations/sec".format(iterations_per_sec), (10, 450), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255))
         #return frame
         # 
-
-    
-
-        
-def display_webcam():
-    #cps = CountsPerSec().start()
+def capture(q):
     cap = cv2.VideoCapture(0)
     while True:
-       
-        ret, frame = cap.read()
+        ret, f1 = cap.read()
+        q.put(f1)
         if not ret:
             print("Failed to capture frame from the webcam")
             break
+    cap.release()
+    
+
+        
+def display_webcam(q):
+    #cps = CountsPerSec().start()
+    while True:
         #frame = putIterationsPerSec(frame, cps.countsPerSec())
+        frame = q.get()
         mask = object_detector.apply(frame)
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         blur = cv2.medianBlur(gray, 5)
@@ -70,13 +72,14 @@ def display_webcam():
    
 
 if __name__ == '__main__':
-  
-    # Create a separate process for displaying the webcam feed
-    process = mp.Process(target=display_webcam)
-    #grab = mp.Process(target=capture, args=(q,))
+    
+    q=LifoQueue()
+    # Create a sepstreamlit run /Users/josephtemplet/Downloads/GitRepo-Joe-Templet/sensor-mounting/sensor-mounting-2/Fucking-streamlitarate process for displaying the webcam feed
+    process = KThread(target=display_webcam, args=(q,))
+    grab = KThread(target=capture, args=(q,))
 
     # Start the process
-    #grab.start()
+    grab.start()
     process.start()
 
     # Create a placeholder for displaying the video frame
@@ -85,7 +88,7 @@ if __name__ == '__main__':
     # Continuously update the vdeo frame in the Streamlit app
     #while True:
         #frame = display_webcam(q).__next__()
-    for frame in display_webcam():
+    for frame in display_webcam(q):
         frame_placeholder.image(frame, channels="BGR")
 
         # Check if the 'q' key is pressed to stop the program
@@ -93,5 +96,5 @@ if __name__ == '__main__':
             break
 
     # Terminate the process
-    #grab.terminate()
+    grab.terminate()
     process.terminate()

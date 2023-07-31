@@ -3,21 +3,26 @@
 import streamlit as st
 import cv2 
 import multiprocessing as mp
-from multiprocessing import Queue
+from multiprocessing import Manager
+from queue import LifoQueue 
+from queue import Queue
 import numpy as np
+import time
+from threading import Thread
 from kthread import KThread
-#from CountsPerSec import CountsPerSec
+
 
 
 object_detector = cv2.createBackgroundSubtractorMOG2(history=50, varThreshold=80)
 MinDist = st.sidebar.slider("minimum distance", 1, 200, 1)
 dp = (st.sidebar.slider("DP", 0, 200, 5))*(0.01)
-max_canny_threshold = st.sidebar.slider("Canny Threshold", 1, 200, 1)
-marker_threshold = st.sidebar.slider("Marker Threshold", 1, 200, 1)
+max_canny_threshold = st.sidebar.slider("canny threshold", 1, 200, 1)
+marker_threshold = st.sidebar.slider("marker_threshold", 1, 200, 1)
 MinRadius = st.sidebar.slider("minradius", 0, 200, 1)
 MaxRadius = st.sidebar.slider("maxradius", 0, 200, 1)
 detect_edges = st.sidebar.checkbox("show edge detection")
 show_circles = st.sidebar.checkbox("show radius limits")
+stop_button = st.sidebar.button('STOP')
 
     #def putIterationsPerSec(frame, iterations_per_sec):
     
@@ -27,57 +32,86 @@ show_circles = st.sidebar.checkbox("show radius limits")
         #cv2.putText(frame, "{:.0f} iterations/sec".format(iterations_per_sec), (10, 450), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255))
         #return frame
         # 
-
+def capture(q):
+    cap = cv2.VideoCapture(0)
+    while True:
+        #while q.qsize() >= 35:
+            #time.sleep(0.001)
+        ret, f1 = cap.read()
+        q.put(f1)
+        #cap_count.value += 1
+        if not ret:
+            print("Failed to capture frame from the webcam") 
+    cap.release()
     
 
         
-def display_webcam():
+def display_webcam(q):
     #cps = CountsPerSec().start()
-    cap = cv2.VideoCapture(0)
     while True:
-       
-        ret, frame = cap.read()
-        if not ret:
-            print("Failed to capture frame from the webcam")
-            break
         #frame = putIterationsPerSec(frame, cps.countsPerSec())
+        frame = q.get()
         mask = object_detector.apply(frame)
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         blur = cv2.medianBlur(gray, 5)
         circles = cv2.HoughCircles(blur, 
-            cv2.HOUGH_GRADIENT, minDist=MinDist,
-            dp=dp,
-            param1=max_canny_threshold,
-            param2=marker_threshold,
-            minRadius=MinRadius,
-            maxRadius=MaxRadius)
+        cv2.HOUGH_GRADIENT, minDist=190,
+        dp=120,
+        param1=150,
+        param2=50,
+        minRadius=50,
+        maxRadius=160)
 
         if circles is not None:
             detected_circles = np.uint16(np.around(circles))
             for (x, y, r) in detected_circles[0, :]:       
                 cv2.circle(frame, (x, y), r, (0, 0, 0), 3)
                 cv2.circle(frame, (x, y), 2, (0, 255, 255), 3)
-
-        if detect_edges:
+        cv2.imshow("Processed Frame", frame)
+        if cv2.waitKey(1) & 0xFF == ord('e'):
+            break
+        """if detect_edges:
             frame = cv2.Canny(frame, max_canny_threshold/2, max_canny_threshold)
         
         if show_circles:
             cv2.circle(frame, (100, 100), MinRadius, (0, 100, 100), 3)
             cv2.circle(frame, (100, 100), MaxRadius, (0, 100, 100), 3)
-
-        yield frame
+"""
+        #yield frame
+        """proc_count.value += 1
+        cv2.imshow('Frame', frame)
+        if cv2.waitKey(1) & 0xFF == ord('w'):
+            print(cap_count.value - proc_count.value)
+            break"""
 
    
 
 if __name__ == '__main__':
-  
+    #manager = Manager()
+    #q = manager.Queue()
+    q=LifoQueue()
+    #cap_count = manager.Value('i', 0)
+    #proc_count = manager.Value('i', 0)
+
     # Create a separate process for displaying the webcam feed
-    process = mp.Process(target=display_webcam)
-    #grab = mp.Process(target=capture, args=(q,))
+    #process = mp.Process(target=display_webcam, args=(q, ))
+    grab = KThread(target=capture, args=(q, ))
 
     # Start the process
-    #grab.start()
-    process.start()
+    grab.start()
+    #process.start()
+
+    """start_time = time.time()
+    while True:
+        # Check if 5 seconds have passed
+        if time.time() - start_time >= 3:
+            print(f"Frames collected in the last 5 seconds: {cap_count.value}")
+            print(f"Frames processed in the last 5 seconds: {proc_count.value}")
+            cap_count.value = 0
+            proc_count.value = 0
+            start_time = time.time()
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break"""
 
     # Create a placeholder for displaying the video frame
     frame_placeholder = st.empty()
@@ -85,7 +119,7 @@ if __name__ == '__main__':
     # Continuously update the vdeo frame in the Streamlit app
     #while True:
         #frame = display_webcam(q).__next__()
-    for frame in display_webcam():
+    for frame in display_webcam(q):
         frame_placeholder.image(frame, channels="BGR")
 
         # Check if the 'q' key is pressed to stop the program
@@ -93,5 +127,8 @@ if __name__ == '__main__':
             break
 
     # Terminate the process
-    #grab.terminate()
-    process.terminate()
+    display_webcam(q)
+    grab.join()
+    #process.terminate()
+    cv2.destroyAllWindows()
+    
